@@ -1,0 +1,84 @@
+#!/Users/matthew/anaconda3/bin/python3
+import re
+from os import path
+from time import sleep, strftime
+import sys
+
+import markovify
+import requests
+import tweepy
+from keys import key
+from requests_oauthlib import OAuth1
+from tweepy import TweepError
+
+consumer_key = key["consumer_key"]
+consumer_secret = key["consumer_secret"]
+access_token = key["access_token"]
+access_token_secret = key["access_token_secret"]
+
+auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
+auth.set_access_token(access_token, access_token_secret)
+api = tweepy.API(auth)
+
+
+def collect_tweets():  # for 3200 tweets or less
+    username = handle
+    oauth = OAuth1(key["consumer_key"], key["consumer_secret"], key["access_token"], key["access_token_secret"])
+    number = 3200
+    api_url = "https://api.twitter.com/1.1/statuses/user_timeline.json?screen_name="
+    url = api_url + f"{username}&count={number}&tweet_mode=extended&include_rts=false"
+    r = requests.get(url, auth=oauth)
+    if r.status_code is 200:
+        return [tweet_json for tweet_json in r.json()]
+    else:
+        raise Exception(f"there was an issue with retrieval: {r.status_code}")
+
+
+def clean(tweet):
+    tw = re.sub("(https?://.*)|(www\..*)|(t\.co.*)|(amzn\.to.*)( |$)", "", tweet["full_text"])  # remove links
+    tw = re.sub("RE:|(rt|Rt|RT) @.+ | ?RT|Rt ?|^@.+ ", "", tw)  # ignore @'s if it's a direct reply
+    tw = re.sub("\.@", "@", tw)
+    tw = re.sub("\n", " ", tw)
+    tw = re.sub(" ?#", " #", tw)
+    tw = re.sub("\.\.\.+", "...", tw)  # collapses long ellipses
+    tw = re.sub(" ?&amp; ?", " & ", tw)  # convert into &
+    tw = re.sub("&lt;", "<", tw)
+    tw = re.sub("&gt;", ">", tw)
+    tw = re.sub("$", " ", tw)
+    last = tw[-5:].strip()  # check to see if we need to add a period to their tweet
+    if "..." not in last and "?" not in last and "!" not in last and "." not in last:
+        tw += ". "
+    tw = re.sub(" +\. +", "", tw)  # remove weird, random periods
+    return tw
+
+
+def process_tweets():
+    tweets = collect_tweets()
+    processed_corpus = [clean(tweet) for tweet in tweets]
+    full_corpus = " ".join(processed_corpus)  # assemble into singe blob of text
+    return re.sub(" +", " ", full_corpus).encode("utf-8")  # collapse extra spaces and encode as unicode
+
+
+def make_model(state_size):
+    global CORPUS
+    CORPUS = str(process_tweets())
+    return markovify.Text(CORPUS, state_size=state_size)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) is 1:
+        exit("usage: markovify <twitter_handle> [state_size]")
+
+    handle = sys.argv[1].lower()
+    state_size = 2 if len(sys.argv) is 2 else int(sys.argv[2])
+
+    try:
+        markov_model = make_model(state_size)
+        print("\033[33m" + f"generating markov model for {handle} with up to 3200 tweets!" +
+              f"\ncorpus size: {len(CORPUS)} characters" + "\033[0m")
+        for _ in range(20):
+            print(markov_model.make_short_sentence(min_chars=10, max_chars=140, tries=100))
+    except KeyError:
+        print(f"Corpus not large enough (state size {state_size}).")
+        print(f"Corpus size is {len(CORPUS)} characters:")
+        print("\033[33m", CORPUS)

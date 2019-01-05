@@ -3,7 +3,7 @@ from datetime import datetime
 from threading import Thread
 from time import sleep, strftime
 
-import colors
+import auxiliary.colors as colors
 import tweepy
 from tweepy import TweepError
 

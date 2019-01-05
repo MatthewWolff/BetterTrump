@@ -3,7 +3,7 @@ import json
 import re
 
 handle = "realDonaldTrump"
-
+folder = "auxiliary" # folder that the user.json is in relative to run_bot.py
 
 def clean(tweet):
     tw = re.sub("Donald J\. Trump|\(cont\)", "", tweet["text"])  # ignore when he quotes himself
@@ -31,7 +31,7 @@ def useful(tw):
 
 
 def process_tweets():
-    with open(f"{handle}.json") as raw_corpus:
+    with open(f"{folder}/{handle}.json") as raw_corpus:
         tweets = json.load(raw_corpus)
     processed_corpus = [clean(tweet) for tweet in tweets if useful(tweet)]
     full_corpus = " ".join(processed_corpus)  # assemble into singe blob of text
