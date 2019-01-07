@@ -61,7 +61,7 @@ def process_tweets():
 
 def make_model(state_size):
     global CORPUS
-    CORPUS = str(process_tweets())
+    CORPUS = process_tweets().decode("utf-8")
     return markovify.Text(CORPUS, state_size=state_size)
 
 
