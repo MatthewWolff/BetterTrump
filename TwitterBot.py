@@ -15,19 +15,10 @@ class TwitterBot:
     def __init__(self, api_keys, active_hours=range(24)):
         self.keys = api_keys
         self.active = active_hours
-        self.api, self.me = self.verify()
-        self.log = f"{self.me}_log.txt"
+        self.api, self.me = self._verify()
+        self.log_file = f"{self.me}.log"
 
-    def authorize(self):
-        """
-        Uses keys to create an API accessor and returns it
-        :return: an API object used to access the Twitter API
-        """
-        auth = tweepy.OAuthHandler(self.keys["consumer_key"], self.keys["consumer_secret"])
-        auth.set_access_token(self.keys["access_token"], self.keys["access_token_secret"])
-        return tweepy.API(auth)
-
-    def verify(self):
+    def _verify(self):
         """
         Verifies that the user has valid credentials for accessing Tweepy API
         :return: a tuple containing an API object and the handle of the bot
@@ -44,39 +35,42 @@ class TwitterBot:
         thread.daemon = True  # kill this thread if program exits
         thread.start()
 
-        api = self.authorize()
+        api = self._authorize()
         try:
             me = api.me().screen_name
         except TweepError as e:
-            err = e[0][0]["message"]
-            raise ValueError(f"API might be disabled or you have invalid keys:\n\t{err}")
+            raise ValueError("API might be disabled or you have invalid keys:"
+                             f"\n\t{self._extract_tweepy_error(e)}")
 
         thread.join()  # lol
-        print(colors.white(" verified\n") + colors.cyan("starting up bot ") + colors.white("@" + me + "!\n"))
-        return api, me  # api, the bot's handle, the mimicked's name, full version of user's name
+        print(colors.white(" verified\n") +
+              colors.cyan("starting up bot ") + colors.white(f"@{me}!\n"))
+        return api, me  # api, the bot's handle
 
-    def tweet(self, tweet, at=None):
+    def _authorize(self):
         """
-        General tweeting method. It will divide up long bits of text into multiple messages, and return the first tweet
-        that it makes. Multi-tweets (including to other people) will have second and third messages made in response
-        to self.
-        :param at: who the user is tweeting at
-        :param tweet: the text to tweet
-        :return: the first tweet if successful
+        Uses keys to create an API accessor and returns it
+        :return: an API object used to access the Twitter API
         """
-        if tweet.strip() == "":
-            return
+        auth = tweepy.OAuthHandler(self.keys["consumer_key"], self.keys["consumer_secret"])
+        auth.set_access_token(self.keys["access_token"], self.keys["access_token_secret"])
+        return tweepy.API(auth)
 
-        num_tweets, tweets = self.divide_tweet(tweet, at)
-        if num_tweets > 0:
-            # replace @'s with #'s and convert unicode emojis before tweeting
-            [self.api.update_status(tw.replace("@", "#").encode("utf-8")) for tw in tweets]
-            self.log_activity(f"{strftime('[%Y-%m-%d] @ %H:%M:%S')} Tweeted: " + " ".join(tweets))
-            return tweets[0]  # return first tweet - multi-tweets will be responding to it
+    def _is_replied(self, tweet):
+        """
+        Check if a tweet has been replied to (favorite'd)
+        :param tweet: the status object to check the reply status of
+        :return: a boolean value indicating if the status has been replied to
+        """
+        favorites = [x.id for x in self.api.favorites()]
+        return tweet.id in favorites
 
-    def log_activity(self, activity):
-        with open(self.log, "w") as log:
-            log.write(activity)
+    def _mark_replied(self, tweet_id):
+        """
+        Favorites a tweet to mark it "replied" to. This prevents the bot from replying more than once
+        :param tweet_id: the tweet that has been addressed
+        """
+        self.api.create_favorite(tweet_id)
 
     def clear_tweets(self):
         """
@@ -91,7 +85,17 @@ class TwitterBot:
                 self.api.destroy_status(status.id)
                 print(colors.white("deleted successfully"))
             except TweepError:
-                print(colors.red(f"Failed to delete: {status.id}"))
+                print(colors.red(f"failed to delete: {status.id}"))
+
+    def clear_favorites(self):
+        """
+        DANGER: removes all favorites from current bot account
+        """
+        response = None
+        while response != "y":
+            response = input(colors.red("ARE YOU SURE YOU WANT TO ERASE ALL FAVORITES? (y/n)"))
+        [self.api.destroy_favorite(x.id) for x in self.api.favorites()]
+        print(colors.white("erased all favorites"))
 
     def is_active(self):
         """
@@ -103,42 +107,61 @@ class TwitterBot:
         late = self.active[-1]
         return early <= current_time < late
 
-    def divide_tweet(self, long_tweet, at=None):
+    @staticmethod
+    def _divide_tweet(long_tweet, at=None):
         """
         A method for exceptionally long tweets
         :rtype: the number of tweets, followed by the tweets
         :param at: the person you're responding to/at
         :param long_tweet: the long-ass tweet you're trying to make
-        :return: an array of up to 3 tweets
+        :return: the number of tweets and an array of tweets
         """
-        # 1 tweet
-        handle = "@" + at + " " if at else ""
-        my_handle = "@" + self.me
-        numbered = len("(x/y) ")
 
-        single_tweet_length = (TWEET_MAX_LENGTH - len(handle))
-        first_tweet_length = (TWEET_MAX_LENGTH - len(handle) - numbered)
-        self_tweet_length = (TWEET_MAX_LENGTH - len(my_handle) - numbered)
-        two_tweets_length = first_tweet_length + self_tweet_length
-        three_tweets_length = two_tweets_length + self_tweet_length
-
-        # 1 tweet
-        if len(long_tweet) <= single_tweet_length:
-            return 1, [handle + long_tweet]
-        # too many characters (edge case)
-        elif len(long_tweet) >= three_tweets_length:
+        # too big!
+        if len(long_tweet) > 1400:
             return 0, None
-        # 3 tweets
-        elif len(long_tweet) > two_tweets_length:
-            return 3, [handle + "(1/3) "
-                       + long_tweet[:first_tweet_length],
-                       my_handle + "(2/3) "
-                       + long_tweet[first_tweet_length: two_tweets_length],
-                       my_handle + "(3/3) "
-                       + long_tweet[two_tweets_length: len(long_tweet)]]
-        # 2 tweets
-        else:
-            return 2, [handle + "(1/2) "
-                       + long_tweet[: first_tweet_length],
-                       my_handle + "(2/2) "
-                       + long_tweet[first_tweet_length: len(long_tweet)]]
+
+        handle = f"@{at} " if at else ""
+
+        def make_new_tweet(sentence_list):
+            tweet = list()
+            while len(sentence_list) > 0 and len("\n".join(tweet)) + len(sentence_list[0] + " ") <= TWEET_MAX_LENGTH:
+                tweet.append(sentence_list.pop(0))
+            return "\n".join(tweet)
+
+        tweets = list()
+        verdicts = long_tweet.split("\n")
+        verdicts[0] = handle + verdicts[0]
+        while len(verdicts) > 0:
+            tweets.append(make_new_tweet(verdicts))
+        return len(tweets), tweets
+
+    def tweet(self, tweet, at=None):
+        """
+        General tweeting method. It will divide up long bits of text into multiple messages,
+        and return the first tweet that it makes. Multi-tweets (including to other people)
+        will have second and third messages made in response to self.
+        :param at: who the user is tweeting at
+        :param tweet: the text to tweet
+        :return: the first tweet, if successful; else, none
+        """
+        if tweet.strip() == "":
+            return
+
+        num_tweets, tweets = self._divide_tweet(tweet, at)
+        if num_tweets > 0:
+            # replace @'s with #'s and convert unicode emojis before tweeting
+            [self.api.update_status(tw.replace("@", "#").encode("utf-8")) for tw in tweets]
+            self.log(f"Tweeted: {' '.join(tweets)}")
+            return tweets[0]
+
+    @staticmethod
+    def _extract_tweepy_error(e):
+        return e.response.reason
+
+    def log(self, activity):
+        with open(self.LOG_FILE, "a") as l:
+            l.write(f"{strftime('[%Y-%m-%d] @ %H:%M:%S')} {activity}\n")
+
+    def log_error(self, error_msg):
+        self.log(colors.red(f"ERROR => {error_msg}"))
