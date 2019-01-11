@@ -2,4 +2,5 @@ realDonaldTrump_corpus.txt
 keys.py
 markov_model.json
 __pycache__/
-MarkovChainer_log.txt
+*.bot
+*.log

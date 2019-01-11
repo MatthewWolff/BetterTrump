@@ -15,7 +15,7 @@ def make_model(corpus):
 
 
 if __name__ == "__main__":
-    markov_model = make_model(corpus=str(process_tweets()))  # http://www.trumptwitterarchive.com
+    markov_model = make_model(corpus=process_tweets().decode("utf-8"))  # http://www.trumptwitterarchive.com
     bot = TwitterBot(key, active_hours=range(7, 21))
 
     while True:
