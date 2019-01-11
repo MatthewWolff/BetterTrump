@@ -160,7 +160,7 @@ class TwitterBot:
         return e.response.reason
 
     def log(self, activity):
-        with open(self.LOG_FILE, "a") as l:
+        with open(self.log_file, "a") as l:
             l.write(f"{strftime('[%Y-%m-%d] @ %H:%M:%S')} {activity}\n")
 
     def log_error(self, error_msg):
