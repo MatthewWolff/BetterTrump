@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from random import uniform as randunif
 from time import sleep
 
