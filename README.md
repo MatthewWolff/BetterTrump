@@ -1,9 +1,9 @@
-# BetterTrump Bot
+# Trump Bot
 Trump tweets a lot. It's repetitive and often non-sensical—perfect for a Markov model!  
 **NOTE: this bot uses a Markov chain package. If you'd like to see my hand-implemented version, see** [MarkovTweets](https://github.com/MatthewWolff/MarkovTweets).  
 
 ## Requirements:
-* Python 3
+* Python 3.5+
 * Tweepy API credentials
 * Markovify package
 
