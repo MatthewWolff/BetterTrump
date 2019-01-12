@@ -23,6 +23,7 @@ if __name__ == "__main__":
             new_tweet = markov_model.make_short_sentence(min_chars=20, max_chars=200, tries=100)
             print(bot.tweet(new_tweet))
 
-        # wait for 1 hr + randunif(1,-1) * 30 min
-        tweet_delay = 60 * 60 + randunif(-1, 1) * 60 * 30
+        # sleep for two hours, give or take an ~hour
+        sec_per_hour = 60 * 60
+        tweet_delay = sec_per_hour * (2 + randunif(-1, 1))
         sleep(tweet_delay)
