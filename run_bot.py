@@ -9,7 +9,7 @@ from auxiliary.prepare_corpus import process_tweets
 
 
 def make_model(corpus):
-    text_model = markovify.Text(corpus, state_size=3)
+    text_model = markovify.Text(corpus, state_size=4)
     print("Generated markov model...")
     return text_model
 
@@ -20,7 +20,7 @@ if __name__ == "__main__":
 
     while True:
         if bot.is_active():
-            new_tweet = markov_model.make_short_sentence(min_chars=10, max_chars=200, tries=100)
+            new_tweet = markov_model.make_short_sentence(min_chars=15, max_chars=180, tries=200)
             print(bot.tweet(new_tweet))
 
         # sleep for two hours, give or take an ~hour
